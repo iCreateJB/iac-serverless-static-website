@@ -22,8 +22,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v5
-        run: echo "${{ needs.build.outputs.repoName }}"
+      - run: echo "${{ needs.build.outputs.repoName }}"
   # deploy:
   #   needs: [build, test]  
   #   runs-on: ubuntu-latest
