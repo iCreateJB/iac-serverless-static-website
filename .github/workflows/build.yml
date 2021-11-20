@@ -15,30 +15,27 @@ jobs:
         id: get-repo-name
         with:
           script: |
-            const name = context.payload.repository.full_name.split('/')[1].substring('iac-'.length)
-            core.setOutput('repoName', name)
-      - run: echo "${{ steps.get-repo-name.outputs.repoName }}"
+            const serviceName = context.payload.repository.full_name.split('/')[1].substring('iac-'.length)
+            const domainName  = serviceName.replace('-','.')
+            core.setOutput('serviceName', serviceName)
+            core.setOutput('domainName', domainName)
+      - run: echo "${{ steps.get-repo-name.outputs.serviceName }}"
+      - run: echo "${{ steps.get-repo-name.outputs.domainName }}"
     outputs:
-      repoName: "${{ steps.get-repo-name.outputs.repoName }}"
+      serviceName: "${{ steps.get-repo-name.outputs.serviceName }}"
+      domainName: "${{ steps.get-repo-name.outputs.domainName }}"
   test:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - run: echo "${{ needs.build.outputs.repoName }}"
+      - run: echo "${{ needs.build.outputs.serviceName }}"
+      - run: echo "${{ needs.build.outputs.domainName }}"
   # deploy:
   #   needs: [build, test]  
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v1
   #     - uses: actions/setup-node@v1    
-  #     - uses: actions/github-script@v5
-  #       id: get-repo-name
-  #       with:
-  #         script: |
-  #           console.log(context)
-  #           const name = context.payload.repository.full_name.split('/')[1]
-  #           core.setOutput('repoName', name)
-  #     - run: echo "${{steps.get-repo-name.outputs.repoName}}"    
   #     - name: Install serverless Framework
   #       run: npm install -g serverless
   #     - name: Serverless provider authentication
@@ -47,8 +44,8 @@ jobs:
   #       run: npm install
   #     - name: Deploy
   #       env:
-  #         SERVICE_NAME: ''
-  #         DOMAIN_NAME: ''
+  #         SERVICE_NAME: "${{ needs.build.outputs.repoName }}"
+  #         DOMAIN_NAME: "${{ needs.build.outputs.domainName }}"
   #         HOSTED_ZONE: ''      
   #       run: sls deploy
   # deploy-to-prod:
@@ -57,14 +54,6 @@ jobs:
   #   steps:
   #     - uses: actions/checkout@v1
   #     - uses: actions/setup-node@v1    
-  #     - uses: actions/github-script@v5
-  #       id: get-repo-name
-  #       with:
-  #         script: |
-  #           console.log(context)
-  #           const name = context.payload.repository.full_name.split('/')[1]
-  #           core.setOutput('repoName', name)
-  #     - run: echo "${{steps.get-repo-name.outputs.repoName}}"    
   #     - name: Install serverless Framework
   #       run: npm install -g serverless
   #     - name: Serverless provider authentication
@@ -73,7 +62,7 @@ jobs:
   #       run: npm install
   #     - name: Deploy
   #       env:
-  #         SERVICE_NAME: ''
-  #         DOMAIN_NAME: ''
+  #         SERVICE_NAME: "${{ needs.build.outputs.serviceName }}"
+  #         DOMAIN_NAME: "${{ needs.build.outputs.domainName }}"
   #         HOSTED_ZONE: ''
   #       run: sls deploy -s prod
