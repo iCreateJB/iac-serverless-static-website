@@ -1,7 +1,8 @@
 name: Build
 on:
-  tags:
-    - v*
+  push:
+    tags:
+      - v
 jobs:
   build:
     runs-on: ubuntu-latest
