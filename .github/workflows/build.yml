@@ -17,7 +17,9 @@ jobs:
           script: |
             const name = context.payload.repository.full_name.split('/')[1].substring('iac-'.length)
             core.setOutput('repoName', name)
-      - run: echo "${{steps.get-repo-name.outputs.repoName}}"
+      - run: echo "${{ steps.get-repo-name.outputs.repoName }}"
+    outputs:
+      repoName: "${{ steps.get-repo-name.outputs.repoName }}"
   test:
     needs: build
     runs-on: ubuntu-latest
