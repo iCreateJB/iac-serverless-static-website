@@ -1,8 +1,8 @@
 name: Build
 on:
   push:
-    tags:
-      - v
+    branches:
+      - main
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,7 +15,7 @@ jobs:
         id: get-repo-name
         with:
           script: |
-            const name = context.payload.repository.full_name.split('/')[1]
+            const name = context.payload.repository.full_name.split('/')[1].substring('iac-'.length)
             core.setOutput('repoName', name)
       - run: echo "${{steps.get-repo-name.outputs.repoName}}"
   test:
