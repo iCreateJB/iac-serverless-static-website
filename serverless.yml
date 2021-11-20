@@ -1,0 +1,162 @@
+service: ${env:SERVICE_NAME}
+frameworkVersion: '2'
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+  deploymentBucket:
+    blockPublicAccess: true
+  tracing:
+    lambda: true
+  logs:
+    restApi: true
+    level: INFO
+    accessLogging: true
+    executionLogging: true
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - s3:*
+      Resource:
+        Fn::GetAtt:
+          - ContentArchive
+          - Arn
+
+custom:
+  domainName: ${env:DOMAIN_NAME}
+  hostedZone: ${env:HOSTED_ZONE}
+
+functions:
+  api:
+    handler: src/api.handler
+    events:
+      - http:
+          path: /
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false    
+
+resources:
+  Resources: 
+    ContentArchive:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.domainName}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: True
+          BlockPublicPolicy: True
+          IgnorePublicAcls: True
+          RestrictPublicBuckets: True          
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+
+    ContentArchivePolicy:
+      Type: 'AWS::S3::BucketPolicy'
+      Properties:
+        Bucket: !Ref ContentArchive
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 's3:*'
+              Principal:
+                AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${self:service}-${self:provider.stage}-${self:provider.region}-lambdaRole'
+              Resource: 
+                - !Sub 'arn:aws:s3:::${self:custom.domainName}'
+                - !Sub 'arn:aws:s3:::${self:custom.domainName}/*'
+              Sid: ${self:custom.domainName}-access-policy
+
+    OAIBucketPolicy:
+      Type: 'AWS::S3::BucketPolicy'
+      Properties:
+        Bucket: !Ref ContentArchive
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 's3:GetObject'
+              Principal:
+                CanonicalUser: !GetAtt
+                  - CloudFrontOriginAccessIdentity
+                  - S3CanonicalUserId
+              Resource: 
+                - !Sub 'arn:aws:s3:::${self:custom.domainName}'
+                - !Sub 'arn:aws:s3:::${self:custom.domainName}/*'
+              Sid: ${self:service}-${self:provider.stage}-origin-access-policy    
+
+    CloudFrontOriginAccessIdentity:
+      Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+      Properties:
+        CloudFrontOriginAccessIdentityConfig:
+          Comment: !Sub 'access-identity-${self:custom.domainName}.s3.amazonaws.com'
+
+    Certificate:
+      Type: AWS::CertificateManager::Certificate
+      Properties:
+        DomainName: ${self:custom.domainName}
+        DomainValidationOptions:
+          - DomainName: ${self:custom.domainName}
+            HostedZoneId: ${self:custom.hostedZone}
+        ValidationMethod: DNS
+
+    DistributionConfig:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Aliases:
+            - ${self:custom.domainName}
+          DefaultRootObject: 'index.html'
+          Enabled: true
+          HttpVersion: 'http2'
+          IPV6Enabled: true
+          PriceClass: 'PriceClass_All'
+          DefaultCacheBehavior:
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            DefaultTTL: 86400
+            MaxTTL: 31536000
+            MinTTL: 0
+            SmoothStreaming: false
+            TargetOriginId: !Sub "S3-${self:custom.domainName}"
+            ViewerProtocolPolicy: 'redirect-to-https'
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: 'none'
+            # LambdaFunctionAssociations:
+            #   EventType: 'viewer-request'
+            #   LambdaFunctionARN: ''
+          Origins:
+            - DomainName: !Sub '${self:custom.domainName}.s3.amazonaws.com'
+              Id: !Sub 'S3-${self:custom.domainName}'
+              OriginPath: ''
+              S3OriginConfig:
+                OriginAccessIdentity: !Sub
+                  - origin-access-identity/cloudfront/${OAI}
+                  - { OAI: !Ref CloudFrontOriginAccessIdentity }
+            
+          Restrictions:
+            GeoRestriction:
+              RestrictionType: 'none'
+          ViewerCertificate:
+            AcmCertificateArn: !Ref Certificate
+            SslSupportMethod: 'sni-only'

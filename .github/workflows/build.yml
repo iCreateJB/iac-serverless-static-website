@@ -1,0 +1,78 @@
+name: Build
+on:
+  tags:
+    - v*
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+      - uses: actions/github-script@v5
+        id: get-repo-name
+        with:
+          script: |
+            console.log(context)
+            const name = context.payload.repository.full_name.split('/')[1]
+            core.setOutput('repoName', name)
+      - run: echo "${{steps.get-repo-name.outputs.repoName}}"
+      - name: Install NPM dependencies
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses:
+  deploy:
+    needs: [build, test]  
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-node@v1    
+      - uses: actions/github-script@v5
+        id: get-repo-name
+        with:
+          script: |
+            console.log(context)
+            const name = context.payload.repository.full_name.split('/')[1]
+            core.setOutput('repoName', name)
+      - run: echo "${{steps.get-repo-name.outputs.repoName}}"    
+      - name: Install serverless Framework
+        run: npm install -g serverless
+      - name: Serverless provider authentication
+        run: sls config credentials --provider aws --key ${{ secrets.AWS_KEY }} --secret ${{ secrets.AWS_SECRET }}
+      - name: Install NPM dependencies
+        run: npm install
+      - name: Deploy
+        env:
+          SERVICE_NAME: ''
+          DOMAIN_NAME: ''
+          HOSTED_ZONE: ''      
+        run: sls deploy
+  deploy-to-prod:
+    needs: [build, test]  
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-node@v1    
+      - uses: actions/github-script@v5
+        id: get-repo-name
+        with:
+          script: |
+            console.log(context)
+            const name = context.payload.repository.full_name.split('/')[1]
+            core.setOutput('repoName', name)
+      - run: echo "${{steps.get-repo-name.outputs.repoName}}"    
+      - name: Install serverless Framework
+        run: npm install -g serverless
+      - name: Serverless provider authentication
+        run: sls config credentials --provider aws --key ${{ secrets.AWS_KEY }} --secret ${{ secrets.AWS_SECRET }}
+      - name: Install NPM dependencies
+        run: npm install
+      - name: Deploy
+        env:
+          SERVICE_NAME: ''
+          DOMAIN_NAME: ''
+          HOSTED_ZONE: ''
+        run: sls deploy -s prod
